@@ -1,0 +1,42 @@
+# Auto-merge Dependabot PRs
+#
+# Usage: Place in any repo that has Dependabot enabled.
+# This workflow is NOT reusable (uses workflow_dispatch for manual triggering).
+# Copy into your repo's .github/workflows/ or reference as a reusable workflow.
+
+name: Dependabot Auto-Merge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dependabot/fetch-metadata@v2
+        id: metadata
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const rules = [
+              { type: 'version-update', value: 'semver-patch' },
+              { type: 'version-update', value: 'semver-minor' },
+            ];
+            const pass = rules.some(r => r.type === 'version-update' && r.value === '${{ steps.metadata.outputs.update-type }}');
+            if (!pass) {
+              core.info('Skipping auto-merge — update type not eligible');
+              return;
+            }
+            await github.rest.pulls.merge({
+              pull_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              merge_method: 'squash',
+            });
